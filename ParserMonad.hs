@@ -83,6 +83,12 @@ pair = StateT' $ \str -> do
             (v, s'') <- runStateT nullparse s'
             return $ ((k, v), s'')
 
+ap = do
+    consume '['
+    xs <- newNewSep (consume ',') nullparse
+    consume ']'
+    return (JArray xs)
+
 op = do
     consume '{'
     xs <- newNewSep (consume ',') pair
@@ -101,12 +107,6 @@ newNewSep sg p = StateT' $ \str -> sep' str (Just [])
 consume :: Char -> ParserT String Maybe ()
 consume s = StateT' $
     \(c : str) -> if c == s then Just ((), str) else Nothing
-
-ap = do
-    consume '['
-    xs <- newNewSep (consume ',') nullparse
-    consume ']'
-    return (JArray xs)
 
 --
 -- 消费字符串有两种：有产出和无产出
