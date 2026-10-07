@@ -1,5 +1,4 @@
 import Data.List (isInfixOf)
-import Debug.Trace
 import StateMonad
 
 data JValue
@@ -36,7 +35,7 @@ behind :: (Eq a) => a -> [a] -> [a]
 behind x = drop 1 . snd . break (== x)
 
 nullparse :: JParser
-nullparse = StateT' $ \_ -> Just (JString "null", "remain")
+nullparse = StateT' $ const $ Just (JString "null", "remain")
 quoteTest = map (runStateT quoteParser) ["\"abc", "\"abcd\"\""]
 
 quoteParser :: JParser
@@ -56,6 +55,115 @@ defaultParser = StateT' $ \_ -> Nothing
 -- 对每个字符串进行内部解析
 -- 并且解析结果：有一个失败全部失败：mapM ，
 -- 成功条件：每个解析之后 只剩下空
+--
+
+-- array' = begin '['  >> sepBy parsers ',' -> xs  >> close ']'  >> JArray xs
+-- how to know when to end
+-- sepBy :: Char ->   ( String -> Maybe (String , JValue) ) ->  (String -> Maybe  (String , [JValue] ) )
+-- --                  ^^^^^^^ParserT String Maybe JValue        ^^^^ParserT String Maybe  [JValue]
+-- --
+-- --do symbol '[' >> sepBy parser ',' >>= \ xs -> symbol ']' >> return xs
+newSepBy :: Char -> ParserT String Maybe a -> ParserT String Maybe [a]
+newSepBy sp p = StateT' $ \str ->
+    sep' str (Just [])
+  where
+    sep' _ Nothing = Nothing
+    sep' (c : cs) (Just jvs) =
+        if c == sp
+            then do
+                (v, s') <- runStateT p cs
+                sep' s' (Just (v : jvs))
+            else Just (jvs, c : cs)
+
+pair :: ParserT String Maybe (JValue, JValue)
+pair = StateT' $ \str -> do
+    (k, (s : s')) <- runStateT quoteParser str
+    case s of
+        ':' -> do
+            (v, s'') <- runStateT nullparse s'
+            return $ ((k, v), s'')
+
+op = do
+    consume '{'
+    xs <- newNewSep (consume ',') pair
+    consume '}'
+    return xs
+
+newNewSep :: ParserT String Maybe () -> ParserT String Maybe a -> ParserT String Maybe [a]
+newNewSep sg p = StateT' $ \str -> sep' str (Just [])
+  where
+    sep' s (Just jvs) = do
+        runStateT sg s
+            >>= \(_, s1) ->
+                runStateT p s1
+                    >>= \(v, s') -> sep' s' (Just (v : jvs))
+
+consume :: Char -> ParserT String Maybe ()
+consume s = StateT' $
+    \(c : str) -> if c == s then Just ((), str) else Nothing
+
+ap = do
+    consume '['
+    xs <- newNewSep (consume ',') nullparse
+    consume ']'
+    return (JArray xs)
+
+--
+-- 消费字符串有两种：有产出和无产出
+-- 不必把产出类型放到解析器里面
+-- 解析器可以只是String -> Maybe (String ,String )
+--
+-- consume :: Char -> ParserT String Maybe JValue
+-- consume c = StateT' $ \str ->
+--     if head str == c
+--         then
+--             Just (tail str,)
+--         else Just (str,)
+--
+-- newarray = do
+-- consume '['
+-- xs <- newSepBy ',' parsers
+-- consume ']'
+--
+-- ParserT String Maybe JValue >>
+-- ParserT String Maybe [JValue] >>=
+-- \xs ->
+-- ParserT String Maybe  JValue
+-- >> return $  JArray xs
+--
+--
+--
+-- sep' :: Char -> ParserT String Maybe JValue -> Maybe [JValue] -> ParserT String Maybe [JValue]
+-- sep' _ _ Nothing = StateT' $ \_ -> Nothing
+-- sep' spt p (Just jvs) = StateT' $ \(h:str) -> if  h == spt then  runStateT p str >>= \(s', v) -> sep' spt p (Just (v:jvs))
+
+-- sep' s p  jvs =
+-- \| h == s = do
+--     (s', v) <- runStateT p str
+--     sep' s p s' (v : jvs)
+-- \| otherwise = (h : str, jvs)
+
+test s = do
+    xs <- runStateT arrayParser s
+    return xs
+
+-- between :: Char ->
+-- ( Char -> ParserT (String -> Maybe (String , WHAT? )) ) ->
+-- Char ->
+-- ParserT ( String -> Maybe (String, JValue) )
+-- 得到某种可以传递的东西
+-- ParserT  可以传递
+--
+--
+-- sepBy :: Char -> ParserT
+-- between :
+-- sepBy :
+-- sepByPair :
+-- arrayParser = ParserT (
+--      between '[' ( sepBy ',' )  ']'
+--      )
+-- objectParser = parserT (between '{'  (sepByPair ':' ',' ) ''}')
+
 arrayTest =
     map
         (runStateT arrayParser)
@@ -72,6 +180,8 @@ arrayParser = StateT' $ \(c : cs) ->
     parsers = foldl' (<&>) defaultParser [quoteParser, arrayParser]
     ap (Just jvs) [] = Just (JArray jvs, [])
     ap Nothing _ = Nothing
+    -- close ']' = Just (res)
+    -- sepBy = recursive
     ap (Just jvs) (x : xs) = case x of
         ']' -> Just (JArray jvs, xs)
         ',' -> ap (Just jvs) xs

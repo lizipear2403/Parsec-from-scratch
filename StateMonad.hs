@@ -26,6 +26,9 @@ data State' s a = State'
 
 type Parser' a b = State' a b
 
+-- execState :: (Monad m) => StateT' s m a -> s -> m (a, s)
+-- execState (sma) s = runStateT sma s
+
 evalState :: State' s a -> s -> a
 evalState (State' sa) = fst . sa
 
