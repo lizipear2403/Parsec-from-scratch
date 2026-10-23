@@ -1,4 +1,7 @@
-import Data.List (isInfixOf)
+module JSONParser () where
+
+import Helper
+import ParserCombinator
 import StateMonad
 
 -- union
@@ -15,26 +18,6 @@ data JValue
 type JSONParser = Parser String (Maybe JValue)
 
 type JParser = ParserT String Maybe JValue
-
-isDigit :: Char -> Bool
-isDigit x = case x of
-    '1' -> True
-    '2' -> True
-    '3' -> True
-    '4' -> True
-    '5' -> True
-    '6' -> True
-    '7' -> True
-    '8' -> True
-    '9' -> True
-    '0' -> True
-    '-' -> True
-    _ -> False
-before :: (Eq a) => a -> [a] -> [a]
-before x = (fst . break (== x))
-
-behind :: (Eq a) => a -> [a] -> [a]
-behind x = drop 1 . snd . break (== x)
 
 nullparse :: JParser
 nullparse = StateT $ const $ Just (JString "null", "remain")
@@ -200,8 +183,6 @@ numberParser = nullparse
 
 boolParser :: JParser
 boolParser = nullparse
-main :: IO ()
-main = putStrLn "Hello Parser World"
 
 -- p <- getLine
 -- c <- readFile p

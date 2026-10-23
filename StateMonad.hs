@@ -3,14 +3,13 @@ module StateMonad (
     State (..),
     Identity (..),
     Alternative (..),
-    Parser (..),
-    ParserT (..),
     (<&>),
     evalState,
+    execState,
 )
 where
 
-import Data.List (isInfixOf)
+import Helper
 
 data StateT s m a = StateT
     { runStateT :: s -> m (a, s)
@@ -24,12 +23,10 @@ data State s a = State
     { runState :: s -> (a, s)
     }
 
-type Parser a b = State a b
-
+execState :: State s a -> s -> s
+execState (State sa) = snd . sa
 evalState :: State s a -> s -> a
 evalState (State sa) = fst . sa
-
-type ParserT s m a = StateT s m a
 
 (<&>) :: (Alternative m) => StateT s m a -> StateT s m a -> StateT s m a
 (StateT sma1) <&> (StateT sma2) = StateT (sma1 <\> sma2)
