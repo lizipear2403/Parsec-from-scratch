@@ -1,6 +1,8 @@
 import Data.List (isInfixOf)
 import StateMonad
 
+-- union
+
 data JValue
     = JString String
     | JDouble Float
