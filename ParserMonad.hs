@@ -12,7 +12,7 @@ data JValue
     | JObject [(String, JValue)]
     | JArray [JValue]
     deriving (Eq, Show, Ord)
-type JSONParser = Parser' String (Maybe JValue)
+type JSONParser = Parser String (Maybe JValue)
 
 type JParser = ParserT String Maybe JValue
 
@@ -37,17 +37,17 @@ behind :: (Eq a) => a -> [a] -> [a]
 behind x = drop 1 . snd . break (== x)
 
 nullparse :: JParser
-nullparse = StateT' $ const $ Just (JString "null", "remain")
+nullparse = StateT $ const $ Just (JString "null", "remain")
 quoteTest = map (runStateT quoteParser) ["\"abc", "\"abcd\"\""]
 
 quoteParser :: JParser
-quoteParser = StateT' $ \(c : cs) ->
+quoteParser = StateT $ \(c : cs) ->
     let x = ((JString . before '\"') cs, behind '\"' cs)
      in case c of
             '\"' -> Just x
             _ -> Nothing
 newSepBy :: Char -> ParserT String Maybe a -> ParserT String Maybe [a]
-newSepBy sp p = StateT' $ \str ->
+newSepBy sp p = StateT $ \str ->
     sep' str (Just [])
   where
     sep' _ Nothing = Nothing
@@ -59,7 +59,7 @@ newSepBy sp p = StateT' $ \str ->
             else Just (jvs, c : cs)
 
 pair :: ParserT String Maybe (JValue, JValue)
-pair = StateT' $ \str -> do
+pair = StateT $ \str -> do
     (k, (s : s')) <- runStateT quoteParser str
     case s of
         ':' -> do
@@ -67,7 +67,7 @@ pair = StateT' $ \str -> do
             return $ ((k, v), s'')
 
 between :: ParserT String Maybe () -> ParserT String Maybe a -> ParserT String Maybe () -> ParserT String Maybe a
-between ps pa pe = StateT' $ \str -> do
+between ps pa pe = StateT $ \str -> do
     (_, s) <- runStateT ps str
     (a, s') <- runStateT pa s
     (_, s'') <- runStateT pe s'
@@ -76,7 +76,7 @@ between ps pa pe = StateT' $ \str -> do
 -- lp = do
 --
 newNewSep :: ParserT String Maybe () -> ParserT String Maybe a -> ParserT String Maybe [a]
-newNewSep sg p = StateT' $ \str -> sep' str (Just [])
+newNewSep sg p = StateT $ \str -> sep' str (Just [])
   where
     sep' s (Just jvs) = do
         runStateT sg s
@@ -85,11 +85,11 @@ newNewSep sg p = StateT' $ \str -> sep' str (Just [])
                     >>= \(v, s') -> sep' s' (Just (v : jvs))
 
 consume :: Char -> ParserT String Maybe ()
-consume s = StateT' $
+consume s = StateT $
     \(c : str) -> if c == s then Just ((), str) else Nothing
 
 defaultParser :: JParser
-defaultParser = StateT' $ \_ -> Nothing
+defaultParser = StateT $ \_ -> Nothing
 
 ap = do
     consume '['
@@ -98,17 +98,17 @@ ap = do
     return (JArray xs)
 
 beforeP :: Char -> ParserT String Maybe a -> ParserT String Maybe a
-beforeP c p = StateT' $ \(ss) ->
+beforeP c p = StateT $ \(ss) ->
     let (a, b) = break (== c) ss
      in do
             (v, s) <- runStateT p a
             return (v, b)
 
-qp :: StateT' String Maybe JValue
+qp :: StateT String Maybe JValue
 qp =
     between
         (consume '\"')
-        (beforeP '\"' (StateT' $ \s -> Just $ (JString s, [])))
+        (beforeP '\"' (StateT $ \s -> Just $ (JString s, [])))
         (consume '\"')
 
 test = do
@@ -121,7 +121,7 @@ test = do
 --     return s
 --         where
 --             noneSep :: a ->  ParserT String Maybe ()
---             noneSep _ =  StateT' $ \(c:str) -> Just ((), c:str)
+--             noneSep _ =  StateT $ \(c:str) -> Just ((), c:str)
 --
 op = do
     consume '{'
