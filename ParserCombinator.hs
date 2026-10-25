@@ -9,10 +9,14 @@ module ParserCombinator (
     before,
 ) where
 
+import Debug.Trace
 import StateMonad
 
 type ParserT s m a = StateT s m a
 type Parser a b = State a b
+
+doNothing :: ParserT String Maybe ()
+doNothing = StateT $ \s -> Just ((), s)
 
 -- 解析单个字符并且不返回值
 consume :: Char -> ParserT String Maybe ()
@@ -33,13 +37,17 @@ genParser ps dp = foldl' (<&>) dp ps
 
 -- 根据某个字符的解析进行分割
 sepBy :: ParserT String Maybe () -> ParserT String Maybe a -> ParserT String Maybe [a]
-sepBy sg p = StateT $ \str -> sep' str (Just [])
+sepBy sep vp = StateT $ \str -> sep' str (Just [])
   where
     sep' s (Just jvs) = do
-        runStateT sg s
-            >>= \(_, s1) ->
-                runStateT p s1
-                    >>= \(v, s') -> sep' s' (Just (v : jvs))
+        (v, s1) <- runStateT vp (s)
+        case runStateT sep (s1) of
+            Nothing -> Just ((v : jvs), s1)
+            (Just (_, s')) -> sep' s' (Just (v : jvs))
+
+-- 期待一个分隔符？
+-- 没有分隔符 donothing -> 原样传出
+-- >>= \(_, s') -> sep' s' (Just (v : jvs))
 
 -- 根据某个字符来成对解析
 pair ::

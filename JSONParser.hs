@@ -1,5 +1,6 @@
-module JSONParser () where
+module JSONParser (JValue (..), op) where
 
+import Debug.Trace
 import Helper
 import ParserCombinator
 import StateMonad
@@ -10,11 +11,9 @@ data JValue
     | JInt Int
     | JBool Bool
     | JNull
-    | JObject [(String, JValue)]
+    | JObject [(JValue, JValue)]
     | JArray [JValue]
     deriving (Eq, Show, Ord)
-
-type JSONParser = Parser String (Maybe JValue)
 
 type JParser = ParserT String Maybe JValue
 
@@ -30,10 +29,10 @@ quoteParser = StateT $ \(c : cs) ->
             _ -> Nothing
 ap = do
     consume '['
-    xs <- sepBy (consume ',') nullparse
+    xs <- sepBy (consume ',') qp
     consume ']'
     return (JArray xs)
-qp :: ParserT String Maybe JValue
+
 qp =
     between
         (consume '\"')
@@ -52,11 +51,12 @@ test = do
 --             noneSep :: a ->  ParserT String Maybe ()
 --             noneSep _ =  StateT $ \(c:str) -> Just ((), c:str)
 --
+op :: StateT String Maybe JValue
 op = do
     consume '{'
-    xs <- sepBy (consume ',') (pair ':' (nullparse, nullparse))
+    xs <- sepBy (consume ',') (pair ':' (qp, (qp <&> ap <&> op)))
     consume '}'
-    return xs
+    return (JObject xs)
 
 defaultParser :: JParser
 defaultParser = StateT $ \_ -> Nothing

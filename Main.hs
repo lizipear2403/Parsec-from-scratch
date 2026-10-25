@@ -1,6 +1,9 @@
 module Main where
 
-import JSONParser
+import Test
 
 main :: IO ()
-main = putStrLn "Hello Parser World"
+main = do
+    ls <- test dirPath
+    print ls
+    putStrLn "Hello Parser World !"

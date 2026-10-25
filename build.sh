@@ -8,4 +8,4 @@ ghc ./JSONParser.hs \
     -odir  ./build/ofiles/ \
     -hidir ./build/hifiles/ \
     -o ./build/main/main \
-     -Wall 
+     -Wall && ./build/main/main
