@@ -23,6 +23,7 @@ isDigit x = case x of
     '8' -> True
     '9' -> True
     '0' -> True
+    '.' -> True
     '-' -> True
     _ -> False
 

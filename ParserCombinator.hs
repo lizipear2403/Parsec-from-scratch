@@ -7,6 +7,7 @@ module ParserCombinator (
     genParser,
     pair,
     before,
+    beforeWith,
 ) where
 
 import Debug.Trace
@@ -23,20 +24,42 @@ consume :: Char -> ParserT String Maybe ()
 consume s = StateT $
     \(c : str) -> if c == s then Just ((), str) else Nothing
 
--- 将某个符号之前的所有字符全部解析
-before :: Char -> ParserT String Maybe a -> ParserT String Maybe a
-before c p = StateT $ \(ss) ->
-    let (a, b) = break (== c) ss
+-- 将某个条件满足之前的所有字符全部解析
+beforeWith ::
+    (Char -> Bool) ->
+    ParserT String Maybe a ->
+    ParserT String Maybe a
+beforeWith pre p = StateT $ \(ss) ->
+    let (a, b) = break pre ss
      in do
             (v, s) <- runStateT p a
             return (v, b)
 
+before c p = beforeWith (== c) p
+
+-- before ::
+--     Char ->
+--     ParserT String Maybe a ->
+--     ParserT String Maybe a
+-- before c p = StateT $ \(ss) ->
+--     let (a, b) = break (== c) ss
+--      in do
+--             (v, s) <- runStateT p a
+--             return (v, b)
+
 -- 根据传入的解析器集合生成优先级解析子
-genParser :: (Alternative m, Monad m) => [ParserT s m a] -> ParserT s m a -> ParserT s m a
+genParser ::
+    (Alternative m, Monad m) =>
+    [ParserT s m a] ->
+    ParserT s m a ->
+    ParserT s m a
 genParser ps dp = foldl' (<&>) dp ps
 
 -- 根据某个字符的解析进行分割
-sepBy :: ParserT String Maybe () -> ParserT String Maybe a -> ParserT String Maybe [a]
+sepBy ::
+    ParserT String Maybe () ->
+    ParserT String Maybe a ->
+    ParserT String Maybe [a]
 sepBy sep vp = StateT $ \str -> sep' str (Just [])
   where
     sep' s (Just jvs) = do
@@ -65,6 +88,14 @@ pair sp (pfst, psnd) = StateT $ \(str) -> do
             return $ ((k, v), s'')
         else
             Nothing
+
+-- predicateSymbols :: (Char -> Bool) -> ParserT String Maybe Char
+-- predicateSymbols p = StateT $ \ str -> inner p (Just []  , )
+symbol :: Char -> ParserT String Maybe Char
+symbol c = StateT $ \(ss) ->
+    case ss of
+        [] -> Nothing
+        s : s' -> if s == c then Just (s, s') else Nothing
 
 -- 在某两个符号之间进行解析
 between ::

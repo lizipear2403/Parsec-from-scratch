@@ -7,8 +7,7 @@ import StateMonad
 
 data JValue
     = JString String
-    | JDouble Float
-    | JInt Int
+    | JFloat Float
     | JBool Bool
     | JNull
     | JObject [(JValue, JValue)]
@@ -19,7 +18,6 @@ type JParser = ParserT String Maybe JValue
 
 nullparse :: JParser
 nullparse = StateT $ const $ Just (JString "null", "remain")
-quoteTest = map (runStateT quoteParser) ["\"abc", "\"abcd\"\""]
 
 quoteParser :: JParser
 quoteParser = StateT $ \(c : cs) ->
@@ -27,21 +25,16 @@ quoteParser = StateT $ \(c : cs) ->
      in case c of
             '\"' -> Just x
             _ -> Nothing
-ap = do
-    consume '['
-    xs <- sepBy (consume ',') qp
-    consume ']'
-    return (JArray xs)
-
 qp =
     between
         (consume '\"')
         (ParserCombinator.before '\"' (StateT $ \s -> Just $ (JString s, [])))
         (consume '\"')
-
-test = do
-    s <- runStateT qp "abc"
-    return $ fst s
+ap = do
+    consume '['
+    xs <- sepBy (consume ',') (qp <&> ap <&> op <&> boolParser <&> numberParser)
+    consume ']'
+    return (JArray xs)
 
 --     consume '\"'
 --     s <- sepBy noneSep jstringParse
@@ -54,15 +47,46 @@ test = do
 op :: StateT String Maybe JValue
 op = do
     consume '{'
-    xs <- sepBy (consume ',') (pair ':' (qp, (qp <&> ap <&> op)))
+    xs <- sepBy (consume ',') (pair ':' (qp, nullParser <&> qp <&> ap <&> boolParser <&> op <&> numberParser))
     consume '}'
     return (JObject xs)
 
 defaultParser :: JParser
 defaultParser = StateT $ \_ -> Nothing
 
+-- 只有放在最后才不会出bug？
 numberParser :: JParser
-numberParser = nullparse
+numberParser =
+    beforeWith
+        (not . isDigit)
+        ( StateT $
+            \str -> Just (JFloat ((read str) :: Float), "")
+        )
+
+nullParser :: JParser
+nullParser = do
+    consume 'n'
+    consume 'u'
+    consume 'l'
+    consume 'l'
+    return JNull
 
 boolParser :: JParser
-boolParser = nullparse
+boolParser = trueParser <&> falseParser
+
+falseParser :: JParser
+falseParser = do
+    consume 'f'
+    consume 'a'
+    consume 'l'
+    consume 's'
+    consume 'e'
+    return (JBool False)
+
+trueParser :: JParser
+trueParser = do
+    consume 't'
+    consume 'r'
+    consume 'u'
+    consume 'e'
+    return (JBool True)
