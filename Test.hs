@@ -12,7 +12,9 @@ dirPath :: String
 dirPath = "./Test/"
 
 pp :: String -> String
-pp str = [c | c <- str, c /= ' ' && c /= '\n']
+pp str = filter (not . (\c -> c == ' ' || c == '\n')) str
+
+-- [c | c <- str, c /= ' ' && c /= '\n']
 
 getAllTestCont :: Path -> IO [String]
 getAllTestCont p = do
@@ -26,7 +28,7 @@ collectAll cont = map (parsec) cont
   where
     parsec :: String -> Maybe JValue
     parsec s = do
-        xs <- runStateT op s
+        xs <- runStateT objectParser s
         return $ fst xs
 
 test :: Path -> IO [Maybe JValue]

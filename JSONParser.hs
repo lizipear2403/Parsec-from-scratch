@@ -1,4 +1,4 @@
-module JSONParser (JValue (..), op) where
+module JSONParser (JValue (..), objectParser) where
 
 import Debug.Trace
 import Helper
@@ -25,14 +25,26 @@ quoteParser = StateT $ \(c : cs) ->
      in case c of
             '\"' -> Just x
             _ -> Nothing
-qp =
+
+stringParser =
     between
         (consume '\"')
         (ParserCombinator.before '\"' (StateT $ \s -> Just $ (JString s, [])))
         (consume '\"')
-ap = do
+arrayParser = do
     consume '['
-    xs <- sepBy (consume ',') (qp <&> ap <&> op <&> boolParser <&> numberParser)
+    xs <-
+        sepBy
+            (consume ',')
+            ( genParser
+                [ stringParser
+                , arrayParser
+                , objectParser
+                , boolParser
+                , numberParser
+                ]
+                defaultParser
+            )
     consume ']'
     return (JArray xs)
 
@@ -44,10 +56,26 @@ ap = do
 --             noneSep :: a ->  ParserT String Maybe ()
 --             noneSep _ =  StateT $ \(c:str) -> Just ((), c:str)
 --
-op :: StateT String Maybe JValue
-op = do
+objectParser :: StateT String Maybe JValue
+objectParser = do
     consume '{'
-    xs <- sepBy (consume ',') (pair ':' (qp, nullParser <&> qp <&> ap <&> boolParser <&> op <&> numberParser))
+    xs <-
+        sepBy
+            (consume ',')
+            ( pair
+                ':'
+                ( stringParser
+                , genParser
+                    [ nullParser
+                    , stringParser
+                    , arrayParser
+                    , boolParser
+                    , numberParser
+                    , objectParser
+                    ]
+                    defaultParser
+                )
+            )
     consume '}'
     return (JObject xs)
 
@@ -60,7 +88,9 @@ numberParser =
     beforeWith
         (not . isDigit)
         ( StateT $
-            \str -> Just (JFloat ((read str) :: Float), "")
+            \str -> case str of
+                "" -> Nothing
+                _ -> Just (JFloat ((read str) :: Float), "")
         )
 
 nullParser :: JParser

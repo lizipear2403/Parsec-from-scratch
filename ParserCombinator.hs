@@ -31,9 +31,10 @@ beforeWith ::
     ParserT String Maybe a
 beforeWith pre p = StateT $ \(ss) ->
     let (a, b) = break pre ss
-     in do
+     in -- (a, b) = (a' ++ [head b'], tail b')
+        do
             (v, s) <- runStateT p a
-            return (v, b)
+            return (v, b ++ s)
 
 before c p = beforeWith (== c) p
 
