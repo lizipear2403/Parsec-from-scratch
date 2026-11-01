@@ -12,7 +12,7 @@ dirPath :: String
 dirPath = "./Test/"
 
 pp :: String -> String
-pp str = filter (not . (\c -> c == ' ' || c == '\n')) str
+pp str = foldl' (++) "" (words str)
 
 -- [c | c <- str, c /= ' ' && c /= '\n']
 

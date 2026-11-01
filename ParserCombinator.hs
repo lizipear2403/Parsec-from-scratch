@@ -4,6 +4,7 @@ module ParserCombinator (
     between,
     consume,
     sepBy,
+    beforeWith',
     genParser,
     pair,
     before,
@@ -30,23 +31,31 @@ beforeWith ::
     ParserT String Maybe a ->
     ParserT String Maybe a
 beforeWith pre p = StateT $ \(ss) ->
-    let (a, b) = break pre ss
+    let (a, b) = break (not . pre) ss
      in -- (a, b) = (a' ++ [head b'], tail b')
         do
             (v, s) <- runStateT p a
             return (v, b ++ s)
 
-before c p = beforeWith (== c) p
+beforeWith' ::
+    (Char -> Bool) ->
+    (String -> Bool) ->
+    (String -> (a, String)) ->
+    ParserT String Maybe a
+beforeWith' spPre failPre valGen =
+    beforeWith (spPre) (beforeWithNew failPre valGen)
+  where
+    -- beforeWithNew :: (String -> Bool) -> (String -> (a, String)) -> StateT String Maybe a
+    beforeWithNew pre genValue =
+        ( StateT $ \s ->
+            if pre s
+                then Nothing
+                else
+                    Just (genValue s)
+        )
 
--- before ::
---     Char ->
---     ParserT String Maybe a ->
---     ParserT String Maybe a
--- before c p = StateT $ \(ss) ->
---     let (a, b) = break (== c) ss
---      in do
---             (v, s) <- runStateT p a
---             return (v, b)
+before :: Char -> ParserT String Maybe a -> ParserT String Maybe a
+before c p = beforeWith (== c) p
 
 -- 根据传入的解析器集合生成优先级解析子
 genParser ::
@@ -67,11 +76,7 @@ sepBy sep vp = StateT $ \str -> sep' str (Just [])
         (v, s1) <- runStateT vp (s)
         case runStateT sep (s1) of
             Nothing -> Just ((v : jvs), s1)
-            (Just (_, s')) -> sep' s' (Just (v : jvs))
-
--- 期待一个分隔符？
--- 没有分隔符 donothing -> 原样传出
--- >>= \(_, s') -> sep' s' (Just (v : jvs))
+            (Just (_, s')) -> sep' s' (Just (jvs ++ [v]))
 
 -- 根据某个字符来成对解析
 pair ::
